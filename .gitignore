@@ -1,0 +1,19 @@
+# dataset: images - labels
+dataset
+source_dataset
+output_dataset
+
+# logs
+*.logs
+*.pyc
+.ipynb_checkpoints
+data/
+__pycache__/
+checkpoints/
+*.pth
+*.jpg
+*.png
+venv/
+.idea/
+wandb/
+results
