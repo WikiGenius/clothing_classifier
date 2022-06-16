@@ -4,6 +4,7 @@ source_dataset
 output_dataset
 
 # logs
+logs
 *.logs
 *.pyc
 .ipynb_checkpoints
