@@ -1,22 +1,16 @@
 # Author: Muhammed El-Yamani
-import os
-from numpy import load
+
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch import optim
-import re
 import wandb
 import matplotlib.pyplot as plt
-import glob
 from tqdm import tqdm
 import logging
 from pathlib import Path
+import pandas as pd
+import plotly.express as px
 
 # helper files
 from evaluate import evaluate, get_predictions
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
 from utils import utils
 from .early_stopping import EarlyStopping
 
@@ -99,45 +93,44 @@ class Net_Utility:
             print("No need for training")
 
     def display_results(self):
-        print("Under development")
         if self.dir_checkpoint is None:
             print("There is no dir_checkpoint")
             return
         vn = self.dir_checkpoint.split('/')[-1]
-        # dir_results = Path(f'results/{vn}').mkdir(parents=True, exist_ok=True)
+        dir_results = f'results/{vn}'
+        Path(dir_results).mkdir(parents=True, exist_ok=True)
 
-        # display all results plotly
-        # save them in results
         results_history = self.get_results()
-        train_loss = results_history['loss']['train']
-        val_loss = results_history['loss']['val']
 
-        valid_score = results_history['accuracy']['val']
-        valid_score = [s.item()for s in valid_score]
+        val_score = results_history['accuracy']['val']
+        val_score = [s.item()for s in val_score]
 
-        learning_rates_history = results_history['learning_rates']
+        plot_df1 = pd.DataFrame()
+        plot_df2 = pd.DataFrame()
 
-        self.epoch = results_history['epoch']
-        steps = results_history['steps']
+        Steps = results_history['steps']*3
+        Value = list()
+        Value.extend(results_history['loss']['train'])
+        Value.extend(results_history['loss']['val'])
+        Value.extend(val_score)
+        
+        Type = ['train_loss']*len(results_history['loss']['train'])
+        Type.extend(['val_loss']*len(results_history['loss']['val']))
+        Type.extend(['val_acc']*len(results_history['accuracy']['val']))
+        plot_df1['Steps'] = Steps
+        plot_df1['Value'] = Value
+        plot_df1['Type'] = Type
+        fig = px.line(plot_df1, x='Steps', y='Value',
+                      color='Type', title='Metrics')
+        fig.write_image(f"{dir_results}/metrics.png")
+        fig.show()
 
-        # ################################### review
-        # fig = make_subplots(
-        #     rows=2, cols=2,
-        #     specs=[[{"colspan": 2}, None],
-        #            [{}, {}]],
-        #     subplot_titles=("Train loss", "valid_score", "learning_rates_history"))
+        plot_df2['lr'] = results_history['learning_rates']
+        plot_df2['Steps'] = results_history['steps']
 
-        # fig.add_trace(go.Scatter(name='Train', x=list(range(1, global_steps + 1)), y=train_loss),
-        #               row=1, col=1)
-
-        # fig.add_trace(go.Scatter(name='valid', x=list(range(1, len(valid_score) + 1)), y=valid_score),
-        #               row=2, col=1)
-        # fig.add_trace(go.Scatter(name='lr', x=list(range(1, len(learning_rates_history) + 1)), y=learning_rates_history),
-        #               row=2, col=2)
-        # fig.update_layout(height=400, width=600, showlegend=False,
-        #                   title_text=f"Results plane {self.plane}")
-        # fig.show()
-        pass
+        fig = px.line(plot_df2, x='Steps', y='lr', title='Learning rate')
+        fig.write_image(f"{dir_results}/learning_rate.png")
+        fig.show()
 
     def get_results(self):
 
@@ -167,9 +160,9 @@ class Net_Utility:
         # (Initialize logging)
         if not self.debug:
             experiment = wandb.init(
-            project=f'Clothing Classifier', entity='muhammed-elyamani')
+                project=f'Clothing Classifier', entity='muhammed-elyamani')
             experiment.config.update(dict(epochs=self.epochs, batch_size=self.batch_size, learning_rate=self.learning_rate,
-              save_checkpoint=self.save_checkpoint, img_size=self.img_size))
+                                          save_checkpoint=self.save_checkpoint, img_size=self.img_size))
 
         trainloader = self.data_loaders['train']
         validloader = self.data_loaders['val']
@@ -177,15 +170,22 @@ class Net_Utility:
         n_val = len(self.image_datasets['val'])
         classes_names = self.image_datasets['train'].class_names
         logging.info(f'''Starting training:
-                Epochs:          {self.epochs}
-                Batch size:      {self.batch_size}
-                Learning rate:   {self.learning_rate}
-                Training size:   {n_train}
-                valid size: {n_val}
-                Checkpoints:     {self.save_checkpoint}
-                Device:          {device.type}
-                Images size:  {self.img_size}
+                Epochs:             {self.epochs}
+                Batch size:         {self.batch_size}
+                Learning rate:      {self.learning_rate}
+                Training size:      {n_train}
+                valid size:         {n_val}
+                Checkpoints:        {self.save_checkpoint}
+                Device:             {device.type}
+                Images size:        {self.img_size}
+                Descriptor size:    {self.checkpoint_dict['input_size']}
+                N classes:          {self.checkpoint_dict['output_size']}
+                Headed sizes:       {self.checkpoint_dict['hidden_sizes']}
+                Dropout:            {self.checkpoint_dict['dropout_p']}
+                Arch:               {self.checkpoint_dict['arch'] }
+                Criterion:          {self.checkpoint_dict['criterion'] }
             ''')
+
 
         if self.print_every is None:
             # every 10 % epoch
@@ -232,6 +232,7 @@ class Net_Utility:
                             self.optimizer.param_groups[0]['lr'])
                         self.valid_accuracy_history.append(valid_accuracy)
                         self.steps_history.append(global_steps)
+
                         if not self.debug:
                             # histograms = {}
                             # for tag, value in self.net.named_parameters():
@@ -240,6 +241,7 @@ class Net_Utility:
                             #                tag] = wandb.Histogram(value.data.cpu())
                             #     histograms['Gradients/' +
                             #                tag] = wandb.Histogram(value.grad.data.cpu())
+
                             experiment.log({
                                 'train loss': train_loss,
                                 'valid loss': valid_loss,
@@ -254,7 +256,6 @@ class Net_Utility:
                                 'epoch': epoch,
                                 # **histograms
                             })
-                            wandb.watch(self.net)
 
                         running_loss = 0
                         # logging.info_results
