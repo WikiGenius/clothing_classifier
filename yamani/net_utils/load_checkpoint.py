@@ -1,7 +1,7 @@
 import torch
 from torch import optim
 from torchvision import models
-
+from yamani.nn import NET
 
 # Write a function that loads a checkpoint and rebuilds the model
 def load_checkpoint(file, checkpoint: dict, Network):
@@ -17,7 +17,9 @@ def load_checkpoint(file, checkpoint: dict, Network):
     elif checkpoint['arch'] == 'resnet34':
         model = models.resnet34(pretrained=True)
         type_transfer = 'fc'
-
+    elif checkpoint['arch'] == 'custom_cnn':
+        model=NET(3, checkpoint['output_size'], checkpoint['hidden_sizes'], checkpoint['dropout_p'])
+        type_transfer = False
     else:
         raise
 
@@ -44,7 +46,8 @@ def load_checkpoint(file, checkpoint: dict, Network):
 
     elif type_transfer == 'classifier':
         optimizer = optim.Adam(model.classifier.parameters())
-  
+    else:
+        optimizer = optim.Adam(model.parameters())
     # load the previus optimizer
     optimizer.load_state_dict(checkpoint['optimzier_state_dict'])
     # turn into optimizer.cuda() if it was in cuda
