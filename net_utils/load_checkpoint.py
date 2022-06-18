@@ -24,7 +24,10 @@ def load_checkpoint(file, checkpoint: dict, Network):
         model.load_state_dict(checkpoint['state_dict'])
 
         model.class_to_idx = checkpoint['class_to_idx']
-
+        try:
+            model.class_names = checkpoint['class_names']
+        except:
+            model.class_names = checkpoint['class_to_idx']
         # define optimizer
         optimizer = optim.Adam(model.classifier.parameters())
         # load the previus optimizer
@@ -44,4 +47,4 @@ def load_checkpoint(file, checkpoint: dict, Network):
         except:
             print('there is no metrics to print')
             pass
-        return model, optimizer
+        return model, optimizer, checkpoint
