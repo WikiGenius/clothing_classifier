@@ -15,7 +15,7 @@ def find_last_sub_folders_files(folder_name):
                 match = re.search(r'[0-9]+', folder)
                 if match:
                     nums.append(int(match.group()))
-
+            nums.sort()
             if len(nums) > 0:
                 last_num = nums[-1] + 1
                 return last_num
